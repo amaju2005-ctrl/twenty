@@ -24,6 +24,18 @@ export async function POST(request: Request) {
     email: normalizedEmail,
     options: { emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(destination)}` },
   });
-  if (error) return Response.json({ error: error.message }, { status: 400 });
+  if (error) {
+    let supabaseHost = "invalid-url";
+    try {
+      supabaseHost = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "").hostname;
+    } catch {}
+    console.error("[auth/magic-link] Supabase sign-in failed", {
+      name: error.name,
+      status: error.status,
+      message: error.message,
+      supabaseHost,
+    });
+    return Response.json({ error: error.message }, { status: 400 });
+  }
   return Response.json({ sent: true });
 }
