@@ -2,8 +2,12 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+function supabasePublicKey() {
+  return process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+}
+
 export function isSupabaseServerConfigured() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && supabasePublicKey());
 }
 
 export async function createServerSupabaseClient() {
@@ -11,7 +15,7 @@ export async function createServerSupabaseClient() {
   const cookieStore = await cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabasePublicKey()!,
     {
       cookies: {
         getAll: () => cookieStore.getAll(),
@@ -36,7 +40,7 @@ export async function getCurrentUser() {
 
 export function createAdminSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) return null;
   return createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 }
