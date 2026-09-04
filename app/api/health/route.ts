@@ -13,8 +13,9 @@ export async function GET() {
     return Response.json({ app: "ok", supabase: { configured: false, reachable: false } });
   }
 
+  let healthUrl: URL | undefined;
   try {
-    const healthUrl = new URL("/auth/v1/health", url);
+    healthUrl = new URL("/auth/v1/health", url);
     const response = await fetch(healthUrl, {
       headers: { apikey: key },
       cache: "no-store",
@@ -31,12 +32,20 @@ export async function GET() {
     }, { status: response.ok ? 200 : 503 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Connection failed";
+    const cause = error instanceof Error && error.cause instanceof Error ? error.cause : null;
+    console.error("[health] Supabase is unreachable", {
+      host: healthUrl?.hostname,
+      message,
+      cause: cause?.message,
+    });
     return Response.json({
       app: "ok",
       supabase: {
         configured: true,
         reachable: false,
+        host: healthUrl?.hostname,
         error: message,
+        cause: cause?.message,
       },
     }, { status: 503 });
   }
