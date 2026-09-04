@@ -9,7 +9,10 @@ export async function GET() {
     gmailConnected = Boolean(result.data);
   }
   return Response.json({
-    supabaseConfigured: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)),
+    supabaseConfigured: Boolean(
+      (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL)
+      && (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+    ),
     supabaseAdminConfigured: Boolean(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY),
     discoveryConfigured: Boolean(process.env.HUNTER_API_KEY || process.env.PEOPLE_DATA_LABS_API_KEY),
     emailFinderConfigured: Boolean(process.env.HUNTER_API_KEY),

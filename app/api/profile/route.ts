@@ -12,7 +12,10 @@ export async function GET() {
 export async function POST(request: Request) {
   const body = await request.json() as { cvText?: string; target?: string; targetRoles?: string[]; industries?: string[]; locations?: string[]; fullName?: string; headline?: string; linkedinUrl?: string };
   const user = await getCurrentUser();
-  if (!user) return Response.json({ mode: "demo", saved: true });
+  if (!user) {
+    if (process.env.NEXT_PUBLIC_DEMO_MODE !== "false") return Response.json({ mode: "demo", saved: true });
+    return Response.json({ error: "Sign in before saving your profile." }, { status: 401 });
+  }
   const supabase = await createServerSupabaseClient();
   const { error: profileError } = await supabase!.from("profiles").upsert({
     id: user.id,
