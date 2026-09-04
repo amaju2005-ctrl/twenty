@@ -91,14 +91,42 @@ Set `OPENAI_API_KEY`. `OPENAI_MODEL` defaults to `gpt-5-mini` and can be changed
 
 Without an API key, `/api/draft` returns a polished deterministic draft, so the UI remains functional.
 
-## Configure discovery and verification
+## Configure live discovery and work-email lookup
 
-Both providers are optional:
+Twenty does not scrape LinkedIn. It uses a licensed professional-data API, keeps provider keys on the server, and makes every external lookup a deliberate user action.
 
-- `PEOPLE_DATA_LABS_API_KEY` enables the discovery adapter in `/api/discover`.
-- `HUNTER_API_KEY` enables mailbox verification in `/api/contact/verify`.
+1. Create a People Data Labs account, copy its API key, and set `PEOPLE_DATA_LABS_API_KEY`.
+2. Create a Hunter account, copy its API key, and set `HUNTER_API_KEY`.
+3. Keep `NEXT_PUBLIC_DEMO_MODE=true` while testing the interface. Set it to `false` only after Supabase Auth and both providers are ready.
+4. Redeploy after changing Vercel environment variables; existing deployments do not receive new values automatically.
+5. Sign in, complete onboarding, open **People**, and click **Find my twenty**. That explicit click sends only target roles, industries, and locations to People Data Labs. CV text remains in Supabase and is used by Twenty for local relevance scoring.
+6. Open one person and click **Find work email**. Hunter is called for that selected person only. Successful and unsuccessful lookups are cached for 30 days to prevent repeated credit use.
 
-Provider results should be scored against the authenticated user's career goal before being persisted. Before production use, confirm that your provider contract, privacy notice, retention rules, and target jurisdictions permit each data use. Twenty intentionally does not surface personal email addresses, phone numbers, or guessed contact data.
+The discovery request is capped at 20 returned profiles. Responses are normalized, scored locally, and persisted to the existing `people` and `matches` tables. Hunter results are stored in `contacts` with confidence, source, verification time, and a privacy note. Personal/free-mail addresses are discarded.
+
+Before production use, confirm that your provider contract, privacy notice, retention rules, and target jurisdictions permit each data use. Twenty intentionally does not surface phone numbers, personal email addresses, or low-confidence contact data.
+
+### Vercel production variables
+
+Under **Project → Settings → Environment Variables**, configure these for Production:
+
+```text
+NEXT_PUBLIC_APP_URL=https://twenty-gamma-ten.vercel.app
+NEXT_PUBLIC_DEMO_MODE=false
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+PEOPLE_DATA_LABS_API_KEY=...
+HUNTER_API_KEY=...
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-5-mini
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+APP_ENCRYPTION_KEY=...
+CRON_SECRET=...
+```
+
+Never place provider, OpenAI, Google, service-role, encryption, or cron secrets in `NEXT_PUBLIC_` variables, source code, screenshots, or GitHub.
 
 ## Deploy to Vercel
 

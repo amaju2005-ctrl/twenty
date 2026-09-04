@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Bell, Check, ChevronRight, Database, FileText, KeyRound, Link2, LockKeyhole, Mail, Save, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
 import { Avatar, ProgressBar } from "@/components/ui";
@@ -14,6 +14,15 @@ const tabs = [
   { id: "trust", label: "Trust & privacy", icon: ShieldCheck },
 ];
 
+type IntegrationStatus = {
+  discoveryConfigured: boolean;
+  emailFinderConfigured: boolean;
+  aiConfigured: boolean;
+  gmailConfigured: boolean;
+  gmailConnected: boolean;
+  demoMode: boolean;
+};
+
 export default function SettingsPage() {
   return <Suspense fallback={<div className="page"><div className="panel" style={{ minHeight: 500 }} /></div>}><SettingsContent /></Suspense>;
 }
@@ -23,6 +32,16 @@ function SettingsContent() {
   const [active, setActive] = useState(search.get("tab") || "profile");
   const [saved, setSaved] = useState(false);
   const [digest, setDigest] = useState(true);
+  const [integrations, setIntegrations] = useState<IntegrationStatus | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/integrations/status", { signal: controller.signal })
+      .then((response) => response.ok ? response.json() as Promise<IntegrationStatus> : null)
+      .then((status) => { if (status) setIntegrations(status); })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
   return (
     <div className="page settings-page">
       <header className="page-head"><div><span className="page-kicker">Your workspace</span><h1>Settings</h1><p>Control your profile, integrations and the principles that shape your outreach.</p></div></header>
@@ -33,7 +52,7 @@ function SettingsContent() {
 
           {active === "goals" && <section><div className="settings-title"><div><h2>Career focus</h2><p>Be specific enough for strong matches, broad enough to discover surprising paths.</p></div><button className="button button-dark"><Save size={14} /> Save focus</button></div><div className="focus-summary"><span className="page-kicker">Current focus</span><h3>{demoUser.target}</h3><div><span>Strategy & operations</span><span>Seed to Series B</span><span>London / hybrid</span></div></div><div className="form-grid"><label className="full"><span>What move are you trying to make?</span><textarea defaultValue="Move from strategy consulting into a strategy, operations or chief of staff role at an early-stage climate technology company." /></label><label><span>Target industries</span><input defaultValue="Climate tech, energy, carbon markets" /></label><label><span>Target locations</span><input defaultValue="London, Cambridge, Remote UK" /></label><label><span>Company stage</span><select defaultValue="seed"><option value="seed">Seed to Series B</option><option>Any early-stage company</option><option>Growth stage</option></select></label><label><span>Time horizon</span><select defaultValue="3"><option value="3">Next 3 months</option><option>Next 6 months</option><option>Exploring</option></select></label></div><div className="goal-boundary"><LockKeyhole size={17} /><div><strong>People we will not recommend</strong><p>We exclude contacts with no clear professional relevance, personal-only details or a relationship that would make outreach inappropriate.</p></div></div></section>}
 
-          {active === "integrations" && <section><div className="settings-title"><div><h2>Integrations</h2><p>Connect the tools that complete your workflow. You stay in control of every permission.</p></div></div><div className="integration-list"><div><span className="integration-logo gmail-logo"><Mail size={21} /></span><div><strong>Gmail</strong><p>Review and send from your inbox; sync replies and threads.</p><small><LockKeyhole size={11} /> Minimum scopes · tokens encrypted at rest</small></div><a className="button button-dark" href="/api/gmail/connect">Connect Gmail</a></div><div><span className="integration-logo linkedin-logo">in</span><div><strong>LinkedIn profile</strong><p>Use public profile details you provide for better matching.</p><small>Imported profile URL · No account access</small></div><button className="button button-ghost">Update URL</button></div><div><span className="integration-logo file-logo"><FileText size={21} /></span><div><strong>CV / résumé</strong><p>Last uploaded: alex-morgan-cv.pdf · 12 Aug 2026</p><small>Parsed securely · Original can be deleted</small></div><button className="button button-ghost">Replace</button></div><div><span className="integration-logo data-logo"><Database size={21} /></span><div><strong>Discovery providers</strong><p>Optional professional-data providers configured by your workspace.</p><small>Mock data active until provider keys are added</small></div><span className="setup-chip">Demo mode</span></div></div></section>}
+          {active === "integrations" && <section><div className="settings-title"><div><h2>Integrations</h2><p>Connect the tools that complete your workflow. You stay in control of every permission.</p></div></div><div className="integration-list"><div><span className="integration-logo gmail-logo"><Mail size={21} /></span><div><strong>Gmail</strong><p>Review and send from your inbox; sync replies and threads.</p><small><LockKeyhole size={11} /> Minimum scopes · tokens encrypted at rest</small></div><a className={`button ${integrations?.gmailConnected ? "button-ghost" : "button-dark"}`} href="/api/gmail/connect">{integrations?.gmailConnected ? "Reconnect" : "Connect Gmail"}</a></div><div><span className="integration-logo linkedin-logo">in</span><div><strong>LinkedIn profile</strong><p>Use profile details you provide for better matching.</p><small>Imported profile URL · No scraping or account access</small></div><button className="button button-ghost">Update URL</button></div><div><span className="integration-logo file-logo"><FileText size={21} /></span><div><strong>CV / résumé</strong><p>Your profile story is stored privately in your workspace.</p><small>Used for local relevance scoring · Not sent to data providers</small></div><button className="button button-ghost">Replace</button></div><div><span className="integration-logo data-logo"><Database size={21} /></span><div><strong>Discovery providers</strong><p>People Data Labs finds professional profiles; Hunter reveals one selected work email at a time.</p><small>{integrations ? `${integrations.discoveryConfigured ? "Discovery ready" : "PDL key missing"} · ${integrations.emailFinderConfigured ? "Email finder ready" : "Hunter key missing"}` : "Checking secure server configuration…"}</small></div><span className={`setup-chip ${integrations?.discoveryConfigured && integrations?.emailFinderConfigured ? "setup-chip-live" : ""}`}>{integrations?.discoveryConfigured && integrations?.emailFinderConfigured ? "Live" : "Setup needed"}</span></div></div></section>}
 
           {active === "notifications" && <section><div className="settings-title"><div><h2>Notifications</h2><p>Stay current without making relationship-building noisy.</p></div></div><div className="toggle-list"><div><span><strong>Reply alerts</strong><p>Tell me when a reply syncs from Gmail.</p></span><button className="toggle active"><i /></button></div><div><span><strong>Follow-up review</strong><p>Remind me when a thoughtful follow-up is due.</p></span><button className="toggle active"><i /></button></div><div><span><strong>Weekly relationship digest</strong><p>A short Monday summary of new matches and open loops.</p></span><button onClick={() => setDigest(!digest)} className={`toggle ${digest ? "active" : ""}`}><i /></button></div><div><span><strong>New match alerts</strong><p>Only alert me for unusually strong (90+) matches.</p></span><button className="toggle"><i /></button></div></div></section>}
 

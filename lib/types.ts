@@ -19,11 +19,15 @@ export type Person = {
     email?: string;
     confidence?: number;
     source?: string;
+    sourceUrl?: string;
+    checkedAt?: string;
     note: string;
   };
   social?: { linkedin?: string; website?: string };
   tags: string[];
   lastActive?: string;
+  dataSource?: string;
+  sourceUrls?: string[];
 };
 
 export type OutreachStatus = "draft" | "scheduled" | "sent" | "replied" | "follow_up";

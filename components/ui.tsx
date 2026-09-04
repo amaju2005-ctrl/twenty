@@ -20,7 +20,7 @@ export function ContactBadge({ status }: { status: ContactStatus }) {
     verified: "Verified work email",
     likely: "Needs verification",
     unavailable: "No trusted contact",
-    not_sought: "Warm route preferred",
+    not_sought: "Work email not checked",
   };
   return <span className={`contact-badge contact-${status}`}><span className="status-dot" />{labels[status]}</span>;
 }

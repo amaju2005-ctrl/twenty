@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, Bookmark, BriefcaseBusiness, Check, CircleAlert, ExternalLink, GraduationCap, Lightbulb, Link as LinkIcon, LockKeyhole, Mail, MapPin, Network, ShieldCheck, Sparkles } from "lucide-react";
-import { Avatar, ContactBadge, Score } from "@/components/ui";
-import { getPerson } from "@/lib/data";
+import { ArrowLeft, ArrowRight, Bookmark, BriefcaseBusiness, Check, ExternalLink, GraduationCap, Lightbulb, Link as LinkIcon, LockKeyhole, Mail, MapPin, Network, Sparkles } from "lucide-react";
+import { Avatar, Score } from "@/components/ui";
+import { ContactLookup } from "@/components/contact-lookup";
+import { getPersonForCurrentUser } from "@/lib/people-server";
 
 export default async function PersonDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const person = getPerson(id);
+  const person = await getPersonForCurrentUser(id);
   if (!person) notFound();
   return (
     <div className="page person-detail-page">
@@ -21,13 +22,13 @@ export default async function PersonDetailPage({ params }: { params: Promise<{ i
         <div className="detail-main">
           <section className="panel why-panel"><div className="panel-head"><div><h2>Why {person.name.split(" ")[0]} belongs on your shortlist</h2><p>The evidence behind the score</p></div><Sparkles size={18} /></div><div className="why-content"><p className="why-summary">{person.rationale}</p><div className="signal-grid">{person.signals.map((signal, index) => <div key={signal}><span>{[<Network key="n" />, <BriefcaseBusiness key="b" />, <GraduationCap key="g" />, <Lightbulb key="l" />][index % 4]}</span><div><strong>{signal}</strong><small>{index === 0 ? "A concrete opening for your note" : index === 1 ? "Directly supports your target move" : index === 2 ? "Makes the conversation more credible" : "Increases the chance of useful advice"}</small></div><Check size={14} /></div>)}</div></div></section>
 
-          <section className="panel experience-panel"><div className="panel-head"><h2>Career path</h2><span>Source: public professional profiles</span></div><div className="timeline">{person.experience.map((item, index) => <div key={`${item.company}-${item.role}`}><span className="timeline-dot" /><div><strong>{item.role}</strong><p>{item.company}</p><small>{item.period}</small></div>{index === 0 && <span className="current-chip">Current</span>}</div>)}<div><span className="timeline-dot education-dot" /><div><strong>{person.education[0]}</strong><p>Education</p></div></div></div></section>
+          <section className="panel experience-panel"><div className="panel-head"><h2>Career path</h2><span>Source: {person.dataSource || "professional profile data"}</span></div><div className="timeline">{person.experience.map((item, index) => <div key={`${item.company}-${item.role}`}><span className="timeline-dot" /><div><strong>{item.role}</strong><p>{item.company}</p><small>{item.period}</small></div>{index === 0 && <span className="current-chip">Current</span>}</div>)}{person.education[0] ? <div><span className="timeline-dot education-dot" /><div><strong>{person.education[0]}</strong><p>Education</p></div></div> : null}</div></section>
 
           <section className="panel conversation-panel"><div className="panel-head"><div><h2>Good conversation angles</h2><p>Specific questions grounded in both profiles</p></div></div><div className="angle-list"><div><span>01</span><p>What surprised you most about moving from {person.experience[1]?.company || "your previous role"} into {person.company}?</p><button>Use this angle <ArrowRight size={13} /></button></div><div><span>02</span><p>Which parts of a strategy background are genuinely useful in early-stage climate work—and which need unlearning?</p><button>Use this angle <ArrowRight size={13} /></button></div><div><span>03</span><p>If you were making the same transition today, which teams or problem spaces would you pay attention to?</p><button>Use this angle <ArrowRight size={13} /></button></div></div></section>
         </div>
 
         <aside className="detail-aside">
-          <section className="panel contact-panel"><div className="panel-head"><h2>Best contact route</h2><ShieldCheck size={17} /></div><div className="contact-content"><ContactBadge status={person.contact.status} />{person.contact.email ? <><div className="email-row"><span>{person.contact.email}</span><button>Copy</button></div>{person.contact.confidence && <div className="confidence-row"><span>Confidence</span><strong>{person.contact.confidence}%</strong></div>}<div className="confidence-meter"><span style={{ width: `${person.contact.confidence || 0}%` }} /></div><dl><dt>Source</dt><dd>{person.contact.source}</dd><dt>Checked</dt><dd>Within the last 7 days</dd></dl></> : <div className="no-email"><LockKeyhole size={22} /><p>{person.contact.note}</p></div>}<div className="contact-note"><CircleAlert size={14} /><p>{person.contact.note}</p></div><Link href={`/compose/${person.id}`} className="button button-dark"><Mail size={15} /> Draft a thoughtful note</Link></div></section>
+          <ContactLookup personId={person.id} initialContact={person.contact} liveData={person.dataSource === "People Data Labs"} />
           <section className="panel trust-tip"><LockKeyhole size={17} /><div><strong>Trust check</strong><p>Would this message still feel fair if the recipient knew exactly how you found them? Twenty only recommends routes where the answer is yes.</p></div></section>
           {person.lastActive && <section className="panel timely-panel"><span className="page-kicker">Timely signal</span><h3>{person.lastActive}</h3><p>A useful reference if it is genuinely relevant to your question.</p><a href="#">View source <ExternalLink size={12} /></a></section>}
         </aside>

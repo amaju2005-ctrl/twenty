@@ -10,7 +10,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json() as { cvText?: string; target?: string; industries?: string[]; fullName?: string; headline?: string; linkedinUrl?: string };
+  const body = await request.json() as { cvText?: string; target?: string; targetRoles?: string[]; industries?: string[]; locations?: string[]; fullName?: string; headline?: string; linkedinUrl?: string };
   const user = await getCurrentUser();
   if (!user) return Response.json({ mode: "demo", saved: true });
   const supabase = await createServerSupabaseClient();
@@ -20,11 +20,19 @@ export async function POST(request: Request) {
     headline: body.headline,
     linkedin_url: body.linkedinUrl,
     cv_text: body.cvText,
+    location: body.locations?.[0],
     onboarding_completed: true,
   });
   if (profileError) return Response.json({ error: profileError.message }, { status: 500 });
   if (body.target) {
-    const { error: goalError } = await supabase!.from("career_goals").upsert({ user_id: user.id, target_summary: body.target, industries: body.industries || [], is_active: true }, { onConflict: "user_id,is_active" });
+    const { error: goalError } = await supabase!.from("career_goals").upsert({
+      user_id: user.id,
+      target_summary: body.target,
+      target_roles: body.targetRoles || [],
+      industries: body.industries || [],
+      locations: body.locations || [],
+      is_active: true,
+    }, { onConflict: "user_id,is_active" });
     if (goalError) return Response.json({ error: goalError.message }, { status: 500 });
   }
   return Response.json({ mode: "live", saved: true });
