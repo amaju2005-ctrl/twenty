@@ -2,7 +2,7 @@
 
 Twenty is a trust-first career relationship discovery and outreach platform. It answers a focused question—**“Who are the 20 people I should speak to next?”**—then helps the user understand each match, choose an appropriate contact route, write a specific note, send it through Gmail, and manage the resulting conversation.
 
-The repository is a complete, responsive MVP built for Vercel. It runs immediately in demo mode with realistic fallback data; Supabase, OpenAI, Gmail, People Data Labs, and Hunter switch on when their environment variables are configured.
+The repository is a complete, responsive MVP built for Vercel. It runs immediately in demo mode with realistic fallback data; Supabase, OpenAI, Gmail, and Hunter switch on when their environment variables are configured.
 
 ## What is included
 
@@ -26,7 +26,7 @@ The repository is a complete, responsive MVP built for Vercel. It runs immediate
 - Supabase Auth + Postgres + Row Level Security
 - OpenAI Responses API for drafting
 - Gmail OAuth 2.0 and Gmail API
-- Optional People Data Labs discovery and Hunter email verification adapters
+- Hunter profile discovery and selective work-email reveal, with an optional People Data Labs fallback
 - Vercel deployment and Vercel Cron
 
 ## Run locally
@@ -93,16 +93,15 @@ Without an API key, `/api/draft` returns a polished deterministic draft, so the 
 
 ## Configure live discovery and work-email lookup
 
-Twenty does not scrape LinkedIn. It uses a licensed professional-data API, keeps provider keys on the server, and makes every external lookup a deliberate user action.
+Twenty does not scrape LinkedIn. It uses Hunter's professional-data API, keeps the key on the server, and makes every email reveal a deliberate user action.
 
-1. Create a People Data Labs account, copy its API key, and set `PEOPLE_DATA_LABS_API_KEY`.
-2. Create a Hunter account, copy its API key, and set `HUNTER_API_KEY`.
-3. Keep `NEXT_PUBLIC_DEMO_MODE=true` while testing the interface. Set it to `false` only after Supabase Auth and both providers are ready.
-4. Redeploy after changing Vercel environment variables; existing deployments do not receive new values automatically.
-5. Sign in, complete onboarding, open **People**, and click **Find my twenty**. That explicit click sends only target roles, industries, and locations to People Data Labs. CV text remains in Supabase and is used by Twenty for local relevance scoring.
-6. Open one person and click **Find work email**. Hunter is called for that selected person only. Successful and unsuccessful lookups are cached for 30 days to prevent repeated credit use.
+1. Create a Hunter account, copy its API key, and set `HUNTER_API_KEY`.
+2. Keep `NEXT_PUBLIC_DEMO_MODE=true` while testing the interface. Set it to `false` after Supabase Auth and Hunter are ready.
+3. Redeploy after changing Vercel environment variables; existing deployments do not receive new values automatically.
+4. Sign in, complete onboarding, open **People**, and click **Find my twenty**. That explicit click sends only target roles, industries, and locations to Hunter. CV text remains in Supabase and is used by Twenty for local relevance scoring.
+5. Hunter returns masked professional results; no email credit is spent during discovery. Open one person and click **Find work email** to reveal that selected professional address. Successful and unsuccessful lookups are cached for 30 days to prevent repeated credit use.
 
-The discovery request is capped at 20 returned profiles. Responses are normalized, scored locally, and persisted to the existing `people` and `matches` tables. Hunter results are stored in `contacts` with confidence, source, verification time, and a privacy note. Personal/free-mail addresses are discarded.
+The discovery request is capped at 20 returned profiles. Responses are normalized, scored locally, and persisted to the existing `people` and `matches` tables. Revealed Hunter results are stored in `contacts` with confidence, source, verification time, and a privacy note. Personal/free-mail addresses are discarded. `PEOPLE_DATA_LABS_API_KEY` remains supported as an optional alternative discovery source, but it is not required.
 
 Before production use, confirm that your provider contract, privacy notice, retention rules, and target jurisdictions permit each data use. Twenty intentionally does not surface phone numbers, personal email addresses, or low-confidence contact data.
 
@@ -116,8 +115,9 @@ NEXT_PUBLIC_DEMO_MODE=false
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
-PEOPLE_DATA_LABS_API_KEY=...
 HUNTER_API_KEY=...
+# Optional alternative discovery provider:
+PEOPLE_DATA_LABS_API_KEY=...
 OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-5-mini
 GOOGLE_CLIENT_ID=...

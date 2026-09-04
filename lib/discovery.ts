@@ -61,6 +61,11 @@ export type PdlPerson = {
   interests?: string[] | null;
   job_start_date?: string | null;
   job_last_verified?: string | null;
+  reveal_handle?: string | null;
+  hunter_decision_maker?: boolean | null;
+  hunter_full_name_exists?: boolean | null;
+  hunter_linkedin_exists?: boolean | null;
+  hunter_verification?: { date?: string | null; status?: string | null } | null;
 };
 
 export type ScoreBreakdown = {
@@ -288,7 +293,7 @@ function roleCategory(title: string) {
   return "Professional";
 }
 
-export function scoreCandidate(record: PdlPerson, profile: DiscoveryProfile, goal: DiscoveryGoal): ScoredCandidate | null {
+export function scoreCandidate(record: PdlPerson, profile: DiscoveryProfile, goal: DiscoveryGoal, dataSource = "People Data Labs"): ScoredCandidate | null {
   const externalId = clean(record.id);
   const name = clean(record.full_name);
   const role = clean(record.job_title);
@@ -322,11 +327,13 @@ export function scoreCandidate(record: PdlPerson, profile: DiscoveryProfile, goa
     industry: Math.min(20, industryMatches.length * 10),
     location: goalLocationTokens.length ? Math.min(15, locationMatches.length * 15) : 8,
     path: Math.min(20, pathMatches.length * 4),
-    completeness: Math.min(10, [record.linkedin_url, record.experience?.length, record.education?.length, record.skills?.length].filter(Boolean).length * 2.5),
+    completeness: Math.min(10, [record.linkedin_url || record.hunter_linkedin_exists, record.experience?.length, record.education?.length, record.skills?.length, record.hunter_full_name_exists].filter(Boolean).length * 2.5),
   };
-  const score = Math.round(Math.min(98, 30 + breakdown.role + breakdown.industry + breakdown.location + breakdown.path + breakdown.completeness));
+  const providerBaseline = dataSource === "Hunter" ? 55 : 30;
+  const score = Math.round(Math.min(98, providerBaseline + breakdown.role + breakdown.industry + breakdown.location + breakdown.path + breakdown.completeness));
   const category = roleCategory(role);
   const signals = unique([
+    record.hunter_decision_maker ? "Decision-maker profile" : "",
     roleMatches.length ? `Target-role alignment: ${role}` : "Relevant adjacent role",
     industryMatches.length || industry ? `${industry || "Target-sector"} experience` : "Relevant professional experience",
     locationMatches.length || !goalLocationTokens.length ? `Based in ${location}` : "Location is outside your primary target",
@@ -370,7 +377,7 @@ export function scoreCandidate(record: PdlPerson, profile: DiscoveryProfile, goa
       },
       social: { linkedin, website },
       tags: unique([category, industry, location.split(",")[0], "Live data"]).slice(0, 4),
-      dataSource: "People Data Labs",
+      dataSource,
       sourceUrls,
     },
   };
@@ -417,7 +424,7 @@ export function personFromStoredRows(row: StoredPersonRow, match?: StoredMatchRo
     },
     social: { linkedin, website },
     tags: storedTags.length ? storedTags : [roleCategory(row.role_title || "")],
-    dataSource: clean(twenty.dataSource) || "People Data Labs",
+    dataSource: clean(twenty.dataSource) || "Professional data provider",
     sourceUrls,
   };
 }

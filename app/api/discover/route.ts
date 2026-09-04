@@ -9,6 +9,7 @@ import {
   type PdlPerson,
 } from "@/lib/discovery";
 import { people as demoPeople } from "@/lib/data";
+import { buildHunterSearchUrl, hunterPersonRecord, type HunterSearchResponse } from "@/lib/hunter";
 import { getPeopleForCurrentUser } from "@/lib/people-server";
 import { createServerSupabaseClient, getCurrentUser } from "@/lib/supabase/server";
 
@@ -91,46 +92,74 @@ export async function POST(request: Request) {
   };
   const profile = (profileResult.data || {}) as DiscoveryProfile;
 
-  if (!process.env.PEOPLE_DATA_LABS_API_KEY) {
-    if (demoEnabled()) return Response.json({ mode: "demo", people: demoPeople.slice(0, limit), message: "People Data Labs is not configured." });
-    return Response.json({ error: "People Data Labs is not configured in Vercel." }, { status: 503 });
+  const pdlKey = process.env.PEOPLE_DATA_LABS_API_KEY;
+  const hunterKey = process.env.HUNTER_API_KEY;
+  if (!pdlKey && !hunterKey) {
+    if (demoEnabled()) return Response.json({ mode: "demo", people: demoPeople.slice(0, limit), message: "No live discovery provider is configured." });
+    return Response.json({ error: "Add HUNTER_API_KEY in Vercel to enable live discovery." }, { status: 503 });
   }
 
   try {
-    const providerResponse = await fetch("https://api.peopledatalabs.com/v5/person/search", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Api-Key": process.env.PEOPLE_DATA_LABS_API_KEY,
-      },
-      body: JSON.stringify({
-        size: limit,
-        dataset: "resume",
-        titlecase: true,
-        data_include: PDL_DATA_INCLUDE,
-        query: buildPdlQuery(goal, body.location),
-      }),
-      cache: "no-store",
-    });
-    const provider = await providerResponse.json().catch(() => ({})) as PdlResponse;
-    if (!providerResponse.ok) {
-      const providerMessage = provider.error?.message || `Provider returned ${providerResponse.status}`;
-      return Response.json({ error: `Discovery provider error: ${providerMessage}` }, { status: 502 });
+    let providerRecords: PdlPerson[] = [];
+    let totalProviderMatches = 0;
+    let externalProvider = "people_data_labs";
+    let dataSource = "People Data Labs";
+
+    if (pdlKey) {
+      const providerResponse = await fetch("https://api.peopledatalabs.com/v5/person/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": pdlKey,
+        },
+        body: JSON.stringify({
+          size: limit,
+          dataset: "resume",
+          titlecase: true,
+          data_include: PDL_DATA_INCLUDE,
+          query: buildPdlQuery(goal, body.location),
+        }),
+        cache: "no-store",
+      });
+      const provider = await providerResponse.json().catch(() => ({})) as PdlResponse;
+      if (!providerResponse.ok) {
+        const providerMessage = provider.error?.message || `Provider returned ${providerResponse.status}`;
+        return Response.json({ error: `Discovery provider error: ${providerMessage}` }, { status: 502 });
+      }
+      providerRecords = provider.data || [];
+      totalProviderMatches = provider.total || providerRecords.length;
+    } else if (hunterKey) {
+      externalProvider = "hunter";
+      dataSource = "Hunter";
+      const providerResponse = await fetch(buildHunterSearchUrl(hunterKey, goal, limit), {
+        method: "POST",
+        cache: "no-store",
+      });
+      const provider = await providerResponse.json().catch(() => ({})) as HunterSearchResponse;
+      if (!providerResponse.ok) {
+        const detail = provider.errors?.[0]?.details || `Provider returned ${providerResponse.status}`;
+        return Response.json({ error: `Hunter discovery error: ${detail}` }, { status: 502 });
+      }
+      providerRecords = (provider.data || []).flatMap((record) => {
+        const normalized = hunterPersonRecord(record);
+        return normalized ? [normalized] : [];
+      });
+      totalProviderMatches = provider.meta?.results || providerRecords.length;
     }
 
-    const candidates = (provider.data || [])
+    const candidates = providerRecords
       .flatMap((record) => {
-        const candidate = scoreCandidate(record, profile, goal);
+        const candidate = scoreCandidate(record, profile, goal, dataSource);
         return candidate ? [candidate] : [];
       })
       .sort((left, right) => right.person.score - left.person.score)
       .slice(0, limit);
-    if (!candidates.length) return Response.json({ mode: "live", people: [], totalProviderMatches: provider.total || 0 });
+    if (!candidates.length) return Response.json({ mode: "live", people: [], totalProviderMatches, provider: dataSource });
 
     const now = new Date().toISOString();
     const peoplePayload = candidates.map((candidate) => ({
       user_id: user.id,
-      external_provider: "people_data_labs",
+      external_provider: externalProvider,
       external_id: candidate.externalId,
       full_name: candidate.person.name,
       role_title: candidate.person.role,
@@ -145,7 +174,7 @@ export async function POST(request: Request) {
           education: candidate.person.education,
           tags: candidate.person.tags,
           relationship: candidate.person.relationship,
-          dataSource: "People Data Labs",
+          dataSource,
         },
       },
       source_urls: candidate.sourceUrls,
@@ -185,7 +214,7 @@ export async function POST(request: Request) {
     const people = (savedPeople.data || [])
       .map((person) => personFromStoredRows(person, matchByPerson.get(person.id), contactsByPerson.get(person.id)))
       .sort((left, right) => right.score - left.score);
-    return Response.json({ mode: "live", people, totalProviderMatches: provider.total || people.length });
+    return Response.json({ mode: "live", people, totalProviderMatches: totalProviderMatches || people.length, provider: dataSource });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected provider failure";
     return Response.json({ error: `Discovery failed: ${message}` }, { status: 502 });

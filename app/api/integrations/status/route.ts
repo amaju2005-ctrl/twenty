@@ -9,7 +9,7 @@ export async function GET() {
     gmailConnected = Boolean(result.data);
   }
   return Response.json({
-    discoveryConfigured: Boolean(process.env.PEOPLE_DATA_LABS_API_KEY),
+    discoveryConfigured: Boolean(process.env.HUNTER_API_KEY || process.env.PEOPLE_DATA_LABS_API_KEY),
     emailFinderConfigured: Boolean(process.env.HUNTER_API_KEY),
     aiConfigured: Boolean(process.env.OPENAI_API_KEY),
     gmailConfigured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),

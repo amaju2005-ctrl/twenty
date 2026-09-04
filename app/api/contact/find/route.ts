@@ -1,7 +1,7 @@
 import { createServerSupabaseClient, getCurrentUser } from "@/lib/supabase/server";
 
 type HunterSource = { uri?: string; domain?: string } | string;
-type HunterResponse = {
+type HunterFinderResponse = {
   data?: {
     email?: string | null;
     score?: number | null;
@@ -9,6 +9,21 @@ type HunterResponse = {
     verification?: { status?: string | null } | null;
     sources?: HunterSource[] | null;
   };
+  errors?: Array<{ details?: string }>;
+};
+
+type HunterRevealResponse = {
+  data?: Array<{
+    reveal_handle?: string | null;
+    email?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    position?: string | null;
+    linkedin_url?: string | null;
+    score?: number | null;
+    verification?: { status?: string | null } | null;
+    sources?: HunterSource[] | null;
+  }>;
   errors?: Array<{ details?: string }>;
 };
 
@@ -83,33 +98,67 @@ export async function POST(request: Request) {
   const firstName = clean(providerData.first_name) || nameParts[0] || "";
   const lastName = clean(providerData.last_name) || nameParts.slice(1).join(" ");
   const domain = companyDomain(providerData.job_company_website);
-  if (!firstName || !lastName || (!domain && !person.company)) {
+  const revealHandle = clean(providerData.reveal_handle);
+  if (!revealHandle && (!firstName || !lastName || (!domain && !person.company))) {
     return Response.json({ error: "This profile does not contain enough verified professional context for email lookup." }, { status: 422 });
   }
 
-  const url = new URL("https://api.hunter.io/v2/email-finder");
-  url.searchParams.set("api_key", process.env.HUNTER_API_KEY);
-  url.searchParams.set("first_name", firstName);
-  url.searchParams.set("last_name", lastName);
-  url.searchParams.set("max_duration", "10");
-  if (domain) url.searchParams.set("domain", domain);
-  else url.searchParams.set("company", person.company);
-
   try {
-    const providerResponse = await fetch(url, { cache: "no-store" });
-    const provider = await providerResponse.json().catch(() => ({})) as HunterResponse;
-    if (!providerResponse.ok) {
-      const detail = provider.errors?.[0]?.details || `Provider returned ${providerResponse.status}`;
-      return Response.json({ error: `Email provider error: ${detail}` }, { status: 502 });
+    let foundEmail = "";
+    let verification = "";
+    let score = 0;
+    let firstSource: string | undefined;
+    let revealedIdentity: { firstName?: string; lastName?: string; linkedin?: string } | undefined;
+
+    if (revealHandle) {
+      const url = new URL("https://api.hunter.io/v2/multi-domain-search/reveal");
+      url.searchParams.set("api_key", process.env.HUNTER_API_KEY);
+      const providerResponse = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ handles: [revealHandle] }),
+        cache: "no-store",
+      });
+      const provider = await providerResponse.json().catch(() => ({})) as HunterRevealResponse;
+      if (!providerResponse.ok) {
+        const detail = provider.errors?.[0]?.details || `Provider returned ${providerResponse.status}`;
+        return Response.json({ error: `Hunter reveal error: ${detail}` }, { status: 502 });
+      }
+      const revealed = provider.data?.[0];
+      if (!revealed) return Response.json({ error: "Hunter could not reveal this result. Run discovery again to refresh it." }, { status: 404 });
+      const storedVerification = providerData.hunter_verification as { status?: string | null } | undefined;
+      foundEmail = clean(revealed.email).toLowerCase();
+      verification = clean(revealed.verification?.status || storedVerification?.status).toLowerCase();
+      score = Math.max(0, Math.min(100, Math.round(Number(revealed.score) || (verification === "valid" ? 95 : 0))));
+      firstSource = sourceUrl(revealed.sources?.[0]) || sourceUrl(revealed.linkedin_url || undefined);
+      revealedIdentity = {
+        firstName: clean(revealed.first_name) || undefined,
+        lastName: clean(revealed.last_name) || undefined,
+        linkedin: sourceUrl(revealed.linkedin_url || undefined),
+      };
+    } else {
+      const url = new URL("https://api.hunter.io/v2/email-finder");
+      url.searchParams.set("api_key", process.env.HUNTER_API_KEY);
+      url.searchParams.set("first_name", firstName);
+      url.searchParams.set("last_name", lastName);
+      url.searchParams.set("max_duration", "10");
+      if (domain) url.searchParams.set("domain", domain);
+      else url.searchParams.set("company", person.company);
+      const providerResponse = await fetch(url, { cache: "no-store" });
+      const provider = await providerResponse.json().catch(() => ({})) as HunterFinderResponse;
+      if (!providerResponse.ok) {
+        const detail = provider.errors?.[0]?.details || `Provider returned ${providerResponse.status}`;
+        return Response.json({ error: `Email provider error: ${detail}` }, { status: 502 });
+      }
+      foundEmail = clean(provider.data?.email).toLowerCase();
+      verification = clean(provider.data?.verification?.status).toLowerCase();
+      score = Math.max(0, Math.min(100, Math.round(Number(provider.data?.score) || 0)));
+      firstSource = sourceUrl(provider.data?.sources?.[0]);
     }
 
-    const foundEmail = clean(provider.data?.email).toLowerCase();
     const emailDomain = foundEmail.split("@")[1] || "";
     const professional = Boolean(foundEmail && emailDomain && !FREE_EMAIL_DOMAINS.has(emailDomain));
-    const verification = clean(provider.data?.verification?.status).toLowerCase();
-    const score = Math.max(0, Math.min(100, Math.round(Number(provider.data?.score) || 0)));
     const status = !professional ? "unavailable" : verification === "valid" ? "verified" : score >= 70 ? "likely" : "unavailable";
-    const firstSource = sourceUrl(provider.data?.sources?.[0]);
     const sourceLabel = firstSource ? "Public professional source + Hunter verification" : professional ? "Hunter company-pattern match" : "Hunter lookup";
     const privacyNote = status === "verified"
       ? "Professional work address verified by Hunter. Keep the message relevant and honour any opt-out."
@@ -131,6 +180,21 @@ export async function POST(request: Request) {
       updated_at: now,
     }, { onConflict: "user_id,person_id" }).select("*").single();
     if (saved.error) return Response.json({ error: "Email was checked but could not be saved." }, { status: 500 });
+
+    if (revealedIdentity) {
+      const revealedName = [revealedIdentity.firstName, revealedIdentity.lastName].filter(Boolean).join(" ");
+      await supabase.from("people").update({
+        full_name: revealedName || person.full_name,
+        linkedin_url: revealedIdentity.linkedin || person.linkedin_url,
+        profile_data: {
+          ...providerData,
+          first_name: revealedIdentity.firstName || providerData.first_name,
+          last_name: revealedIdentity.lastName || providerData.last_name,
+          linkedin_url: revealedIdentity.linkedin || providerData.linkedin_url,
+        },
+        last_refreshed_at: now,
+      }).eq("id", personId).eq("user_id", user.id);
+    }
     return Response.json({ mode: "live", contact: publicContact(saved.data) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected provider failure";

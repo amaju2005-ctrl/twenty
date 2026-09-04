@@ -28,7 +28,7 @@ export default async function PersonDetailPage({ params }: { params: Promise<{ i
         </div>
 
         <aside className="detail-aside">
-          <ContactLookup personId={person.id} initialContact={person.contact} liveData={person.dataSource === "People Data Labs"} />
+          <ContactLookup personId={person.id} initialContact={person.contact} liveData={person.dataSource === "People Data Labs" || person.dataSource === "Hunter"} />
           <section className="panel trust-tip"><LockKeyhole size={17} /><div><strong>Trust check</strong><p>Would this message still feel fair if the recipient knew exactly how you found them? Twenty only recommends routes where the answer is yes.</p></div></section>
           {person.lastActive && <section className="panel timely-panel"><span className="page-kicker">Timely signal</span><h3>{person.lastActive}</h3><p>A useful reference if it is genuinely relevant to your question.</p><a href="#">View source <ExternalLink size={12} /></a></section>}
         </aside>
