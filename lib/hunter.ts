@@ -1,5 +1,9 @@
 import type { DiscoveryGoal, PdlPerson } from "@/lib/discovery";
 
+export function hunterApiKey() {
+  return process.env.HUNTER_API_KEY || process.env.HUNTERAPIKEY;
+}
+
 type HunterVerification = {
   date?: string | null;
   status?: string | null;

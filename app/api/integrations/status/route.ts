@@ -1,6 +1,8 @@
 import { createServerSupabaseClient, getCurrentUser } from "@/lib/supabase/server";
+import { hunterApiKey } from "@/lib/hunter";
 
 export async function GET() {
+  const hunterKey = hunterApiKey();
   const user = await getCurrentUser();
   const supabase = await createServerSupabaseClient();
   let gmailConnected = false;
@@ -14,8 +16,8 @@ export async function GET() {
       && (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
     ),
     supabaseAdminConfigured: Boolean(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY),
-    discoveryConfigured: Boolean(process.env.HUNTER_API_KEY || process.env.PEOPLE_DATA_LABS_API_KEY),
-    emailFinderConfigured: Boolean(process.env.HUNTER_API_KEY),
+    discoveryConfigured: Boolean(hunterKey || process.env.PEOPLE_DATA_LABS_API_KEY),
+    emailFinderConfigured: Boolean(hunterKey),
     aiConfigured: Boolean(process.env.OPENAI_API_KEY),
     gmailConfigured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
     gmailConnected,

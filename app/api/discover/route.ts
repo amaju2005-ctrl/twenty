@@ -9,7 +9,7 @@ import {
   type PdlPerson,
 } from "@/lib/discovery";
 import { people as demoPeople } from "@/lib/data";
-import { buildHunterSearchUrl, hunterPersonRecord, type HunterSearchResponse } from "@/lib/hunter";
+import { buildHunterSearchUrl, hunterApiKey, hunterPersonRecord, type HunterSearchResponse } from "@/lib/hunter";
 import { getPeopleForCurrentUser } from "@/lib/people-server";
 import { createServerSupabaseClient, getCurrentUser } from "@/lib/supabase/server";
 
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
   const profile = (profileResult.data || {}) as DiscoveryProfile;
 
   const pdlKey = process.env.PEOPLE_DATA_LABS_API_KEY;
-  const hunterKey = process.env.HUNTER_API_KEY;
+  const hunterKey = hunterApiKey();
   if (!pdlKey && !hunterKey) {
     if (demoEnabled()) return Response.json({ mode: "demo", people: demoPeople.slice(0, limit), message: "No live discovery provider is configured." });
     return Response.json({ error: "Add HUNTER_API_KEY in Vercel to enable live discovery." }, { status: 503 });

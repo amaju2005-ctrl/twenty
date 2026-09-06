@@ -1,4 +1,5 @@
 import { createServerSupabaseClient, getCurrentUser } from "@/lib/supabase/server";
+import { hunterApiKey } from "@/lib/hunter";
 
 type HunterSource = { uri?: string; domain?: string } | string;
 type HunterFinderResponse = {
@@ -90,7 +91,8 @@ export async function POST(request: Request) {
 
   const personResult = await supabase.from("people").select("*").eq("id", personId).eq("user_id", user.id).maybeSingle();
   if (personResult.error || !personResult.data) return Response.json({ error: "Person not found in your shortlist." }, { status: 404 });
-  if (!process.env.HUNTER_API_KEY) return Response.json({ error: "Hunter is not configured in Vercel." }, { status: 503 });
+  const hunterKey = hunterApiKey();
+  if (!hunterKey) return Response.json({ error: "Hunter is not configured in Vercel." }, { status: 503 });
 
   const person = personResult.data;
   const providerData = (person.profile_data || {}) as Record<string, unknown>;
@@ -112,7 +114,7 @@ export async function POST(request: Request) {
 
     if (revealHandle) {
       const url = new URL("https://api.hunter.io/v2/multi-domain-search/reveal");
-      url.searchParams.set("api_key", process.env.HUNTER_API_KEY);
+      url.searchParams.set("api_key", hunterKey);
       const providerResponse = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -138,7 +140,7 @@ export async function POST(request: Request) {
       };
     } else {
       const url = new URL("https://api.hunter.io/v2/email-finder");
-      url.searchParams.set("api_key", process.env.HUNTER_API_KEY);
+      url.searchParams.set("api_key", hunterKey);
       url.searchParams.set("first_name", firstName);
       url.searchParams.set("last_name", lastName);
       url.searchParams.set("max_duration", "10");
