@@ -1,9 +1,12 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { gmailRedirectUri } from "@/lib/gmail";
+import { getCurrentUser } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const origin = new URL(request.url).origin;
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.redirect(new URL("/login?next=/settings", origin));
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
     return NextResponse.redirect(new URL("/settings?tab=integrations&gmail=not-configured", origin));
   }

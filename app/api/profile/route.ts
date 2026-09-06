@@ -1,8 +1,15 @@
 import { createServerSupabaseClient, getCurrentUser } from "@/lib/supabase/server";
 
+function demoModeEnabled() {
+  return process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
+}
+
 export async function GET() {
   const user = await getCurrentUser();
-  if (!user) return Response.json({ mode: "demo", profile: null });
+  if (!user) {
+    if (demoModeEnabled()) return Response.json({ mode: "demo", profile: null });
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase!.from("profiles").select("*").eq("id", user.id).maybeSingle();
   if (error) return Response.json({ error: error.message }, { status: 500 });
@@ -10,10 +17,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json() as { cvText?: string; target?: string; targetRoles?: string[]; industries?: string[]; locations?: string[]; fullName?: string; headline?: string; linkedinUrl?: string };
+  const body = await request.json().catch(() => null) as { cvText?: string; target?: string; targetRoles?: string[]; industries?: string[]; locations?: string[]; fullName?: string; headline?: string; linkedinUrl?: string } | null;
+  if (!body) return Response.json({ error: "Invalid request body." }, { status: 400 });
   const user = await getCurrentUser();
   if (!user) {
-    if (process.env.NEXT_PUBLIC_DEMO_MODE !== "false") return Response.json({ mode: "demo", saved: true });
+    if (demoModeEnabled()) return Response.json({ mode: "demo", saved: true });
     return Response.json({ error: "Sign in before saving your profile." }, { status: 401 });
   }
   const supabase = await createServerSupabaseClient();

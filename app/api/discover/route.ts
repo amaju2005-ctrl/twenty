@@ -39,6 +39,8 @@ function clampLimit(value?: number) {
 
 export async function GET() {
   try {
+    const user = await getCurrentUser();
+    if (!user && !demoEnabled()) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const result = await getPeopleForCurrentUser();
     return Response.json(result);
   } catch {

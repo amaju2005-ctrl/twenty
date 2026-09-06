@@ -6,12 +6,15 @@ export async function POST(request: Request) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   const { email } = await request.json().catch(() => ({})) as { email?: string };
-  if (!email) return Response.json({ error: "Email is required" }, { status: 400 });
+  const normalizedEmail = email?.trim().toLowerCase();
+  if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    return Response.json({ error: "A valid email is required" }, { status: 400 });
+  }
   const hunterKey = hunterApiKey();
   if (!hunterKey) return Response.json({ error: "Hunter is not configured in Vercel." }, { status: 503 });
 
   const url = new URL("https://api.hunter.io/v2/email-verifier");
-  url.searchParams.set("email", email);
+  url.searchParams.set("email", normalizedEmail);
   url.searchParams.set("api_key", hunterKey);
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) return Response.json({ error: "Verification provider failed" }, { status: 502 });

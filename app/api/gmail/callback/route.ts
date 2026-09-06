@@ -31,16 +31,32 @@ export async function GET(request: Request) {
   const tokens = await tokenResponse.json() as { access_token: string; refresh_token?: string; expires_in: number; scope?: string };
   const profileResponse = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", { headers: { Authorization: `Bearer ${tokens.access_token}` }, cache: "no-store" });
   const profile = profileResponse.ok ? await profileResponse.json() as { emailAddress?: string; historyId?: string } : {};
+  const gmailAddress = profile.emailAddress || user.email;
+  if (!gmailAddress) return NextResponse.redirect(new URL("/settings?tab=integrations&gmail=profile-error", url.origin));
   const supabase = await createServerSupabaseClient();
-  await supabase!.from("gmail_connections").upsert({
+  let refreshTokenEncrypted: string | null = null;
+  if (tokens.refresh_token) {
+    refreshTokenEncrypted = await encryptSecret(tokens.refresh_token);
+  } else {
+    const { data: existingConnection } = await supabase!.from("gmail_connections")
+      .select("refresh_token_encrypted")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    refreshTokenEncrypted = existingConnection?.refresh_token_encrypted || null;
+  }
+  const { error: saveError } = await supabase!.from("gmail_connections").upsert({
     user_id: user.id,
-    gmail_address: profile.emailAddress || user.email,
+    gmail_address: gmailAddress,
     access_token_encrypted: await encryptSecret(tokens.access_token),
-    refresh_token_encrypted: tokens.refresh_token ? await encryptSecret(tokens.refresh_token) : null,
+    refresh_token_encrypted: refreshTokenEncrypted,
     expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
     scope: tokens.scope,
     history_id: profile.historyId,
     connected_at: new Date().toISOString(),
   });
+  if (saveError) {
+    console.error("[gmail/callback] Unable to save Gmail connection", { code: saveError.code });
+    return NextResponse.redirect(new URL("/settings?tab=integrations&gmail=storage-error", url.origin));
+  }
   return NextResponse.redirect(new URL("/settings?tab=integrations&gmail=connected", url.origin));
 }

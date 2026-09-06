@@ -2,6 +2,18 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function proxy(request: NextRequest) {
+  if (process.env.VERCEL_ENV === "production" && process.env.NEXT_PUBLIC_APP_URL) {
+    try {
+      const canonicalUrl = new URL(process.env.NEXT_PUBLIC_APP_URL);
+      if (request.nextUrl.host !== canonicalUrl.host) {
+        const destination = new URL(`${request.nextUrl.pathname}${request.nextUrl.search}`, canonicalUrl);
+        return NextResponse.redirect(destination, 308);
+      }
+    } catch {
+      console.error("[proxy] NEXT_PUBLIC_APP_URL is not a valid absolute URL");
+    }
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
     || process.env.SUPABASE_PUBLISHABLE_KEY
