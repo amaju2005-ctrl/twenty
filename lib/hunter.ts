@@ -93,10 +93,8 @@ export function buildHunterSearchUrl(apiKey: string, goal: DiscoveryGoal, reques
   url.searchParams.set("min_confidence", "70");
   url.searchParams.set("limit", String(Math.min(100, Math.max(40, requestedLimit * 4))));
 
-  const industries = unique(goal.industries || []).slice(0, 5);
   const locations = unique(goal.locations || []).slice(0, 5);
   const departments = departmentsFor(goal);
-  if (industries.length) url.searchParams.set("industry", industries.join(","));
   if (locations.length) url.searchParams.set("location", locations.join(","));
   if (departments.length) url.searchParams.set("department", departments.join(","));
   url.searchParams.set("seniority", senioritiesFor(goal).join(","));

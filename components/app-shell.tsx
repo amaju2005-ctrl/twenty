@@ -23,7 +23,7 @@ import { Logo } from "@/components/logo";
 const nav = [
   { href: "/dashboard", label: "Today", icon: LayoutDashboard },
   { href: "/people", label: "Discover", icon: Compass },
-  { href: "/outreach", label: "Outreach", icon: Mail, count: 2 },
+  { href: "/outreach", label: "Outreach", icon: Mail },
 ];
 
 const secondary = [
@@ -31,7 +31,21 @@ const secondary = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function AppShell({ children, user = demoUser }: { children: React.ReactNode; user?: typeof demoUser }) {
+type ShellFocus = { title: string; detail: string };
+
+export function AppShell({
+  children,
+  user = demoUser,
+  focus = { title: "Climate tech", detail: "Strategy & operations · London" },
+  outreachAttentionCount = 2,
+  shortlistCount = 12,
+}: {
+  children: React.ReactNode;
+  user?: typeof demoUser;
+  focus?: ShellFocus;
+  outreachAttentionCount?: number;
+  shortlistCount?: number;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -54,17 +68,20 @@ export function AppShell({ children, user = demoUser }: { children: React.ReactN
         </button>
 
         <nav className="sidebar-nav" aria-label="Main navigation">
-          {nav.map(({ href, label, icon: Icon, count }) => (
-            <Link key={href} href={href} onClick={() => setOpen(false)} className={isActive(href) ? "active" : ""}>
-              <Icon size={18} /><span>{label}</span>{count ? <small>{count}</small> : null}
-            </Link>
-          ))}
+          {nav.map(({ href, label, icon: Icon }) => {
+            const count = href === "/outreach" ? outreachAttentionCount : 0;
+            return (
+              <Link key={href} href={href} onClick={() => setOpen(false)} className={isActive(href) ? "active" : ""}>
+                <Icon size={18} /><span>{label}</span>{count ? <small>{count}</small> : null}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="sidebar-focus">
           <div className="focus-label"><Sparkles size={14} /> Current focus</div>
-          <p>Climate tech</p>
-          <span>Strategy & operations · London</span>
+          <p>{focus.title}</p>
+          <span>{focus.detail}</span>
           <Link href="/settings?tab=goals">Edit focus</Link>
         </div>
 
@@ -79,7 +96,7 @@ export function AppShell({ children, user = demoUser }: { children: React.ReactN
 
         <div className="sidebar-user">
           <Avatar initials={user.initials} size="sm" />
-          <span><strong>{user.name}</strong><small>Free plan · 12 of 20</small></span>
+          <span><strong>{user.name}</strong><small>Free plan · {shortlistCount} of 20</small></span>
           <button aria-label="View notifications"><Bell size={17} /></button>
         </div>
       </aside>
