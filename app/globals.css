@@ -370,6 +370,17 @@ h1 em, h2 em { color: #3c6f5f; font-family: Georgia, "Times New Roman", serif; f
 .discovery-context button { border: 0; color: #3c6d58; background: transparent; font-size: 8px; font-weight: 700; }
 .discovery-demo { color: #806426; border-color: #eadcae; background: #faf4df; }
 .discovery-error, .compose-error, .onboarding-error { margin: 10px 0; padding: 11px 13px; color: #8a4736; border: 1px solid #efd0c6; border-radius: 8px; background: #fff0eb; font-size: 9px; }
+.discovery-success { margin: 10px 0; padding: 11px 13px; color: #2f6d52; border: 1px solid #cce5d5; border-radius: 8px; background: #edf8f0; font-size: 9px; }
+.linkedin-import { margin: 10px 0 14px; padding: 20px; display: grid; grid-template-columns: .9fr 1.1fr; gap: 28px; align-items: start; }
+.linkedin-import h2 { margin: 5px 0 8px; font-size: 18px; }
+.linkedin-import p { max-width: 500px; margin-bottom: 8px; color: #68766f; font-size: 9px; line-height: 1.55; }
+.linkedin-import .linkedin-credit-note { color: #3f6f5b; font-weight: 650; }
+.linkedin-search-link { min-height: 34px; margin-top: 7px; padding-inline: 11px; font-size: 9px; }
+.linkedin-import-form { display: grid; gap: 8px; }
+.linkedin-import-form label { color: #59665f; font-size: 9px; font-weight: 720; }
+.linkedin-import-form textarea { width: 100%; min-height: 96px; resize: vertical; padding: 11px; border: 1px solid var(--line); border-radius: 8px; outline: 0; background: #fafaf7; color: var(--ink); font-size: 9px; line-height: 1.5; }
+.linkedin-import-form textarea:focus { border-color: #78a891; box-shadow: 0 0 0 3px rgba(120, 168, 145, .12); }
+.linkedin-import-form .button { justify-self: end; min-height: 36px; font-size: 10px; }
 .discovery-toolbar { min-height: 58px; padding: 10px 12px; display: flex; align-items: center; gap: 12px; }
 .people-search { width: 300px; height: 36px; padding: 0 10px; display: flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 8px; background: #fafaf7; }
 .people-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; font-size: 9px; }
@@ -844,6 +855,8 @@ h1 em, h2 em { color: #3c6f5f; font-family: Georgia, "Times New Roman", serif; f
   .discovery-context p { display: block; margin: 4px 0 0; }
   .discovery-context button { display: none; }
   .discovery-toolbar { align-items: stretch; flex-direction: column; }
+  .linkedin-import { grid-template-columns: 1fr; gap: 18px; }
+  .linkedin-import-form .button { width: 100%; justify-self: stretch; }
   .people-search { width: 100%; }
   .view-controls { display: none; }
   .filter-drawer { grid-template-columns: 1fr 1fr; }

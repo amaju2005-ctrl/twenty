@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Filter, Grid2X2, List, LoaderCircle, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { ContactRound, ExternalLink, Filter, Grid2X2, List, LoaderCircle, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { PersonCard } from "@/components/person-card";
 import type { PeopleMode } from "@/lib/people-server";
 import type { Person } from "@/lib/types";
@@ -15,6 +15,13 @@ type DiscoveryResponse = {
   message?: string;
 };
 
+type LinkedInImportResponse = {
+  people?: Person[];
+  importedCount?: number;
+  skipped?: Array<{ url: string; reason: string }>;
+  error?: string;
+};
+
 export function PeopleDiscovery({ initialPeople, initialMode }: { initialPeople: Person[]; initialMode: PeopleMode }) {
   const [people, setPeople] = useState(initialPeople);
   const [mode, setMode] = useState(initialMode);
@@ -25,6 +32,10 @@ export function PeopleDiscovery({ initialPeople, initialMode }: { initialPeople:
   const [minScore, setMinScore] = useState(60);
   const [grid, setGrid] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const [showLinkedIn, setShowLinkedIn] = useState(false);
+  const [linkedInUrls, setLinkedInUrls] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
+  const [importMessage, setImportMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -63,12 +74,46 @@ export function PeopleDiscovery({ initialPeople, initialMode }: { initialPeople:
     }
   }
 
+  async function importFromLinkedIn() {
+    if (!linkedInUrls.trim()) {
+      setError("Paste at least one LinkedIn profile URL first.");
+      return;
+    }
+    setImportBusy(true);
+    setError("");
+    setImportMessage("");
+    try {
+      const response = await fetch("/api/linkedin/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ urls: linkedInUrls }),
+      });
+      const result = await response.json().catch(() => ({})) as LinkedInImportResponse;
+      if (!response.ok) throw new Error(result.error || "LinkedIn profiles could not be imported.");
+      const imported = result.people || [];
+      setPeople((current) => {
+        const merged = new Map(current.map((person) => [person.id, person]));
+        for (const person of imported) merged.set(person.id, person);
+        return [...merged.values()].sort((left, right) => right.score - left.score);
+      });
+      setMode("live");
+      setLinkedInUrls("");
+      const skippedCount = result.skipped?.length || 0;
+      setImportMessage(`${result.importedCount || imported.length} profile${imported.length === 1 ? "" : "s"} added to your shortlist${skippedCount ? ` · ${skippedCount} could not be resolved` : ""}.`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "LinkedIn profiles could not be imported.");
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
   return (
     <div className="page people-page">
       <header className="page-head">
         <div><span className="page-kicker">Your relationship map</span><h1>People worth knowing</h1><p>Twenty ranks the people with the strongest reason to speak to you next.</p></div>
         <div className="page-head-actions">
           <button className="button button-ghost" onClick={() => setShowFilters((current) => !current)}><SlidersHorizontal size={15} /> Refine</button>
+          <button className="button button-ghost" onClick={() => setShowLinkedIn((current) => !current)}><ContactRound size={15} /> Add from LinkedIn</button>
           <button className="button button-dark" onClick={runDiscovery} disabled={busy}>{busy ? <LoaderCircle className="spin" size={15} /> : <Sparkles size={15} />} {busy ? "Finding your twenty…" : people.length ? "Refresh my twenty" : "Find my twenty"}</button>
         </div>
       </header>
@@ -79,6 +124,22 @@ export function PeopleDiscovery({ initialPeople, initialMode }: { initialPeople:
       </div>
 
       {error ? <div className="discovery-error" role="alert">{error}</div> : null}
+      {importMessage ? <div className="discovery-success" role="status">{importMessage}</div> : null}
+
+      {showLinkedIn ? <section className="linkedin-import panel">
+        <div className="linkedin-import-copy">
+          <span className="page-kicker">LinkedIn scout</span>
+          <h2>Bring the people you already care about</h2>
+          <p>Search LinkedIn yourself, then paste up to five public profile URLs. Twenty sends only those handles to Hunter for professional matching—it does not scrape LinkedIn.</p>
+          <p className="linkedin-credit-note">A successful email match uses one Hunter search credit. No result means no credit used.</p>
+          <a className="button button-ghost linkedin-search-link" href="https://www.linkedin.com/search/results/people/" target="_blank" rel="noreferrer"><ExternalLink size={14} /> Open LinkedIn people search</a>
+        </div>
+        <div className="linkedin-import-form">
+          <label htmlFor="linkedin-profile-urls">LinkedIn profile URLs</label>
+          <textarea id="linkedin-profile-urls" value={linkedInUrls} onChange={(event) => setLinkedInUrls(event.target.value)} placeholder={"https://www.linkedin.com/in/example-one\nhttps://www.linkedin.com/in/example-two"} rows={4} />
+          <button className="button button-dark" onClick={importFromLinkedIn} disabled={importBusy}>{importBusy ? <LoaderCircle className="spin" size={15} /> : <ContactRound size={15} />} {importBusy ? "Resolving profiles…" : "Add to my shortlist"}</button>
+        </div>
+      </section> : null}
 
       <section className="discovery-toolbar panel">
         <label className="people-search"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter your shortlist" />{query ? <button onClick={() => setQuery("")} aria-label="Clear shortlist filter"><X size={14} /></button> : null}</label>

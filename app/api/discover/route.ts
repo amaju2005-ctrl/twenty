@@ -9,7 +9,16 @@ import {
   type PdlPerson,
 } from "@/lib/discovery";
 import { people as demoPeople } from "@/lib/data";
-import { buildHunterSearchUrl, hunterApiKey, hunterPersonRecord, type HunterSearchResponse } from "@/lib/hunter";
+import {
+  buildHunterCompanyDiscoveryUrl,
+  buildHunterCompanyQuery,
+  buildHunterSearchAttempts,
+  hunterApiKey,
+  hunterPersonRecord,
+  type HunterCompany,
+  type HunterCompanyDiscoveryResponse,
+  type HunterSearchResponse,
+} from "@/lib/hunter";
 import { getPeopleForCurrentUser } from "@/lib/people-server";
 import { createServerSupabaseClient, getCurrentUser } from "@/lib/supabase/server";
 
@@ -133,20 +142,59 @@ export async function POST(request: Request) {
     } else if (hunterKey) {
       externalProvider = "hunter";
       dataSource = "Hunter";
-      const providerResponse = await fetch(buildHunterSearchUrl(hunterKey, goal, limit), {
+      let companies: HunterCompany[] = [];
+      const companyResponse = await fetch(buildHunterCompanyDiscoveryUrl(hunterKey), {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: buildHunterCompanyQuery(goal) }),
         cache: "no-store",
       });
-      const provider = await providerResponse.json().catch(() => ({})) as HunterSearchResponse;
-      if (!providerResponse.ok) {
-        const detail = provider.errors?.[0]?.details || `Provider returned ${providerResponse.status}`;
-        return Response.json({ error: `Hunter discovery error: ${detail}` }, { status: 502 });
+      const companyProvider = await companyResponse.json().catch(() => ({})) as HunterCompanyDiscoveryResponse;
+      if (companyResponse.ok) {
+        companies = companyProvider.data || [];
+      } else {
+        console.warn("[api/discover] company discovery unavailable; continuing with broad people search", {
+          status: companyResponse.status,
+          detail: companyProvider.errors?.[0]?.details || "Unknown provider response",
+        });
       }
-      providerRecords = (provider.data || []).flatMap((record) => {
-        const normalized = hunterPersonRecord(record);
-        return normalized ? [normalized] : [];
-      });
-      totalProviderMatches = provider.meta?.results || providerRecords.length;
+
+      const recordsById = new Map<string, PdlPerson>();
+      let lastProviderError = "";
+      for (const attempt of buildHunterSearchAttempts(hunterKey, goal, limit, companies)) {
+        const providerResponse = await fetch(attempt.url, { method: "POST", cache: "no-store" });
+        const provider = await providerResponse.json().catch(() => ({})) as HunterSearchResponse;
+        if (!providerResponse.ok) {
+          lastProviderError = provider.errors?.[0]?.details || `Provider returned ${providerResponse.status}`;
+          console.warn("[api/discover] Hunter search attempt failed", {
+            attempt: attempt.label,
+            status: providerResponse.status,
+            detail: lastProviderError,
+          });
+          if ([401, 429].includes(providerResponse.status)) {
+            return Response.json({ error: `Hunter discovery error: ${lastProviderError}` }, { status: 502 });
+          }
+          continue;
+        }
+
+        lastProviderError = "";
+        totalProviderMatches = Math.max(totalProviderMatches, provider.meta?.results || 0);
+        for (const record of provider.data || []) {
+          const normalized = hunterPersonRecord(record);
+          if (normalized?.id) recordsById.set(normalized.id, normalized);
+        }
+        console.info("[api/discover] Hunter search attempt completed", {
+          attempt: attempt.label,
+          companies: companies.length,
+          providerMatches: provider.meta?.results || 0,
+          acceptedRecords: recordsById.size,
+        });
+        if (recordsById.size >= Math.max(20, limit * 2)) break;
+      }
+      providerRecords = [...recordsById.values()];
+      if (!providerRecords.length && lastProviderError) {
+        return Response.json({ error: `Hunter discovery error: ${lastProviderError}` }, { status: 502 });
+      }
     }
 
     const candidates = providerRecords
@@ -156,7 +204,12 @@ export async function POST(request: Request) {
       })
       .sort((left, right) => right.person.score - left.person.score)
       .slice(0, limit);
-    if (!candidates.length) return Response.json({ mode: "live", people: [], totalProviderMatches, provider: dataSource });
+    if (!candidates.length) {
+      const message = totalProviderMatches
+        ? `${dataSource} returned ${totalProviderMatches} possible contacts, but none had enough professional context to rank safely.`
+        : `${dataSource} found no contacts after widening the search. Try Add from LinkedIn for a person you already want to meet.`;
+      return Response.json({ mode: "live", people: [], totalProviderMatches, provider: dataSource, message });
+    }
 
     const now = new Date().toISOString();
     const peoplePayload = candidates.map((candidate) => ({

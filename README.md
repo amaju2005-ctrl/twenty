@@ -93,13 +93,14 @@ Without an API key, `/api/draft` returns a polished deterministic draft, so the 
 
 ## Configure live discovery and work-email lookup
 
-Twenty does not scrape LinkedIn. It uses Hunter's professional-data API, keeps the key on the server, and makes every email reveal a deliberate user action.
+Twenty does not scrape LinkedIn. It uses Hunter's professional-data API, keeps the key on the server, and makes every contact lookup a deliberate user action.
 
 1. Create a Hunter account, copy its API key, and set `HUNTER_API_KEY`.
 2. Keep `NEXT_PUBLIC_DEMO_MODE=true` while testing the interface. Set it to `false` after Supabase Auth and Hunter are ready.
 3. Redeploy after changing Vercel environment variables; existing deployments do not receive new values automatically.
-4. Sign in, complete onboarding, open **People**, and click **Find my twenty**. That explicit click sends only target roles, industries, and locations to Hunter. CV text remains in Supabase and is used by Twenty for local relevance scoring.
-5. Hunter returns masked professional results; no email credit is spent during discovery. Open one person and click **Find work email** to reveal that selected professional address. Successful and unsuccessful lookups are cached for 30 days to prevent repeated credit use.
+4. Sign in, complete onboarding, open **People**, and click **Find my twenty**. That explicit click sends only target roles, industries, and locations to Hunter. Twenty first identifies relevant companies, then searches progressively broader role and seniority bands inside them. CV text remains in Supabase and is used locally for relevance scoring.
+5. Hunter returns masked professional results; no email credit is spent during automatic discovery. Open one person and click **Find work email** to reveal that selected professional address. Successful and unsuccessful lookups are cached for 30 days to prevent repeated credit use.
+6. For a person you discover on LinkedIn, click **Add from LinkedIn**, paste up to five public `linkedin.com/in/...` URLs, and review the credit notice before importing. Twenty sends only the supplied profile handles to Hunter's Email Finder; it never downloads or scrapes LinkedIn pages. Hunter charges one search credit only when an email is found.
 
 The discovery request is capped at 20 returned profiles. Responses are normalized, scored locally, and persisted to the existing `people` and `matches` tables. Revealed Hunter results are stored in `contacts` with confidence, source, verification time, and a privacy note. Personal/free-mail addresses are discarded. `PEOPLE_DATA_LABS_API_KEY` remains supported as an optional alternative discovery source, but it is not required.
 
